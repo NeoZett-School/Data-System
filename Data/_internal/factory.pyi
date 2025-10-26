@@ -1,0 +1,13 @@
+from typing import TypeVar, Optional, Any, Type
+from .data import Data
+
+__all__ = ("dataclass","T",)
+
+T = TypeVar("T", bound=Data)
+
+class _Dataclass(Data):
+    def __init__(self, **kwargs: Any) -> None: ...
+    def __repr__(self) -> str: ...
+    def __str__(self) -> str: ...
+
+def data_factory(cls: Optional[Type[T]] = None, /, frozen: bool = False, include_methods: bool = False, **kwargs: Any) -> Type[T]: ...
