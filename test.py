@@ -11,4 +11,5 @@ class Bar(Foo, include_methods=True):
     y: int = 2
 
 b = Bar()
+b.x += 5
 print(b.x)

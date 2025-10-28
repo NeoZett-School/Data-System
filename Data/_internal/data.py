@@ -18,7 +18,7 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
     __frozen__: bool
     __include_methods__: bool
     __meta_config__: Dict[str, Any]
-    __slots__ = ("content","annotations","__frozen__","__meta_config__", "__original__", "__was_frozen__",) # __weakref__ is already defined in generic
+    __slots__ = ("content", "annotations", "__frozen__", "__include_methods__", "__meta_config__", "__original__", "__was_frozen__",) # __weakref__ is already defined in generic
 
     def __init__(self, value: Optional[DictSchema] = None, frozen: bool = False, include_methods: bool = False, **kwargs: Any) -> None:
         """Initializes the Data object with optional dictionary content and keyword arguments."""
@@ -26,12 +26,13 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
         instance_content = dict()
         instance_content.update(value or {})
         instance_content.update(kwargs) # Overwrite with instance-level arguments
-
         object.__setattr__(self, "annotations", {})
         object.__setattr__(self, "content", instance_content)
         object.__setattr__(self, "__frozen__", frozen or self.meta.get("frozen", False))
         object.__setattr__(self, "__include_methods__", include_methods or self.meta.get("include_methods", False))
-        object.__setattr__(self, "__meta_config__", dict(object.__getattribute__(self, "__class__").__meta_config__))
+        try:
+            object.__setattr__(self, "__meta_config__", dict(object.__getattribute__(self, "__class__").__meta_config__))
+        except AttributeError: pass # Then the "__meta_config__" is most likely read-only, when we don't use "data_factory"
         self.__raise_typing_error__()
     
     @property
@@ -214,8 +215,7 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
     def __setattr__(self, name: str, value: Any) -> None:
         if object.__getattribute__(self, "__frozen__"):
             return
-        content = object.__getattribute__(self, "content")
-        content[name] = value
+        object.__getattribute__(self, "content")[name] = value
         self.__raise_typing_error__()
     
     def __enter__(self) -> "Data":

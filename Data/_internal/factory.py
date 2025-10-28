@@ -4,7 +4,7 @@ from .data import Data
 T = TypeVar("T", bound=Data)
 
 class _Dataclass(Data):
-    __slots__ = ("content","annotations","__frozen__","__meta_config__", "__original__", "__was_frozen__",)
+    __slots__ = ("content","annotations","__frozen__", "__include_methods__", "__meta_config__", "__original__", "__was_frozen__",)
     def __init__(self, **kwargs: Any) -> None:
         cls = type(self)
 
