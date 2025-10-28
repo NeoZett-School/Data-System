@@ -4,46 +4,63 @@ from .data import Data
 T = TypeVar("T", bound=Data)
 
 class _Dataclass(Data):
-    __slots__ = ("content", "annotations",)
+    __slots__ = ("content","annotations","__frozen__","__meta_config__", "__original__", "__was_frozen__",)
     def __init__(self, **kwargs: Any) -> None:
-        cls = self.__class__
-        class_fields = {
-            k: v for k, v in cls.__dict__.items()
-            if not k.startswith("_") and not callable(v)
-        }
-        kwargs.update(class_fields)
-        super().__init__(**kwargs)
-        object.__setattr__(self, "annotations", dict(cls.__annotations__))
-    def __repr__(self) -> str:
-        fields = ', '.join(f"{key}={value!r}" for key, value in self.items() if key.startswith("_") is False and not callable(value))
-        return f"{self.__class__.__name__}({fields})"
-    def __str__(self) -> str:
-        return self.__repr__()
+        cls = type(self)
 
-def data_factory(cls: Optional[Type[T]] = None, /, frozen: bool = False, include_methods: bool = False, **kwargs: Any) -> Type[T]:
+        instance_content = {}
+        for base in reversed(cls.__mro__):
+            base_dict = getattr(base, '__dict__', {})
+            for k, v in base_dict.items():
+                if not k.startswith("_") and not callable(v):
+                    instance_content[k] = v
+
+        instance_content.update(kwargs)
+
+        super().__init__(value=instance_content)
+
+        anns: dict[str, Any] = {}
+        for base in reversed(cls.__mro__):
+            anns.update(getattr(base, "__annotations__", {}))
+
+        object.__setattr__(self, "annotations", anns)
+
+def data_factory(
+    cls: Optional[Type[T]] = None, /,
+    frozen: bool = False,
+    include_methods: bool = False,
+    **kwargs: Any
+) -> Type[T]:
     """
     Converts a standard class into a Data-like class.
 
-    For correct typing, you must inherit from Data in the class definition.
-
-    Set `include_methods=True` in kwargs to include methods as fields.
+    Inherits existing bases and annotations safely.
     """
-    is_decorator = not cls is None and not kwargs
 
     def decorator(cls: Type[T]) -> Type[T]:
         if not isinstance(cls, type):
-            raise TypeError("The argument must be a class. This is required to convert into a dataclass.")
-        
+            raise TypeError("data_factory can only decorate a class.")
+
+        # Preserve original bases (unless Data or _Dataclass missing)
+        bases = tuple(b for b in cls.__bases__ if b not in (object,))
+        if not any(issubclass(base, Data) for base in bases):
+            bases = (_Dataclass,) + bases
+
         namespace = dict(cls.__dict__)
         namespace["__module__"] = cls.__module__
         namespace["__qualname__"] = cls.__qualname__
 
-        config = getattr(cls, "__meta_config__", {})
+        config = getattr(cls, "__meta_config__", {}).copy()
         config.update(kwargs)
 
-        return type(cls.__name__, (_Dataclass,), namespace, frozen=frozen, include_methods=include_methods, **config)
-    
-    if not is_decorator:
-        return decorator
-    
-    return decorator(cls)
+        new_cls = type(
+            cls.__name__,
+            bases,
+            namespace,
+            frozen=frozen,
+            include_methods=include_methods,
+            **config
+        )
+        return new_cls
+
+    return decorator if cls is None else decorator(cls)

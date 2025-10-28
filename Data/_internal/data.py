@@ -18,7 +18,7 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
     __frozen__: bool
     __include_methods__: bool
     __meta_config__: Dict[str, Any]
-    __slots__ = ("content","annotations","__frozen__","__meta_config__", "__original__", "__was_frozen__") # __weakref__ is already defined in generic
+    __slots__ = ("content","annotations","__frozen__","__meta_config__", "__original__", "__was_frozen__",) # __weakref__ is already defined in generic
 
     def __init__(self, value: Optional[DictSchema] = None, frozen: bool = False, include_methods: bool = False, **kwargs: Any) -> None:
         """Initializes the Data object with optional dictionary content and keyword arguments."""
@@ -185,26 +185,31 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
         return object.__getattribute__(self, "content")[key](*args, **kwargs)
     
     def __getattribute__(self, name: str) -> Any:
+        # Fast path: directly handle internal attributes
+        if name in {"__class__", "__dict__", "__include_methods__", "content"}:
+            return object.__getattribute__(self, name)
+
         this_cls = type(self)
-        data_keys = []
-        in_data = False
-        for c in Data.__mro__:
-            data_keys.extend(list(c.__dict__.keys()))
-            in_data = in_data or name in c.__dict__
-        this_keys = []
-        for c in this_cls.__mro__:
-            keys = []
-            for k, _ in c.__dict__.items():
-                if not k in data_keys:
-                    keys.append(k)
-            this_keys.extend(keys)
-        if in_data: return object.__getattribute__(self, name)
+
+        # Determine if 'name' belongs to the Data class hierarchy
+        in_data = any(name in c.__dict__ for c in Data.__mro__)
+        if in_data:
+            return object.__getattribute__(self, name)
+
+        # Determine if 'name' belongs to this class but not to Data
+        data_keys = {k for c in Data.__mro__ for k in c.__dict__}
+        this_keys = {k for c in this_cls.__mro__ for k in c.__dict__ if k not in data_keys}
+
         if name in this_keys and object.__getattribute__(self, "__include_methods__"):
             return object.__getattribute__(self, name)
+
+        # Try to retrieve from 'content'
         content = object.__getattribute__(self, "content")
         if name in content:
             return content[name]
-        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+
+        # Otherwise, standard Python AttributeError
+        raise AttributeError(f"'{this_cls.__name__}' object has no attribute '{name}'")
     
     def __setattr__(self, name: str, value: Any) -> None:
         if object.__getattribute__(self, "__frozen__"):
