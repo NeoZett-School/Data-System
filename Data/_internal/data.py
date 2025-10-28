@@ -186,7 +186,7 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
     
     def __getattribute__(self, name: str) -> Any:
         # Fast path: directly handle internal attributes
-        if name in {"__class__", "__dict__", "__include_methods__", "content"}:
+        if name in {"__class__", "__dict__", "__include_methods__", "__frozen__", "__meta_config__", "content"}:
             return object.__getattribute__(self, name)
 
         this_cls = type(self)
