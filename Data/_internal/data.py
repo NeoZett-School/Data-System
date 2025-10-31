@@ -144,7 +144,7 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
     
     def copy(self) -> "Data[V]":
         """Creates a shallow copy of the Data object."""
-        return type(self)(self.__get_content__().copy())
+        return type(self)(object.__getattribute__(self, "content").copy())
     
     @classmethod
     def from_dict(cls: Type["Data[V]"], data: DictSchema) -> "Data[V]":
