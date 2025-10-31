@@ -28,6 +28,7 @@ class _Dataclass(Data):
             anns.update(getattr(base, "__annotations__", {}))
 
         object.__setattr__(self, "annotations", anns)
+        self.__raise_typing_error__()
 
 def data_factory(
     cls: Optional[Type[T]] = None, /,

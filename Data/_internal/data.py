@@ -33,7 +33,6 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
         try:
             object.__setattr__(self, "__meta_config__", dict(object.__getattribute__(self, "__class__").__meta_config__))
         except AttributeError: pass # Then the "__meta_config__" is most likely read-only, when we don't use "data_factory"
-        self.__raise_typing_error__()
     
     @property
     def meta(self) -> Dict[str, Any]:
