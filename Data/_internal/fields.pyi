@@ -10,6 +10,7 @@ class Field:
     def __init__(
         self, 
         default: Any = None, 
+        default_factory: Callable[[], Any] = None, 
         validator: Optional[ValidatorLike] = None, 
         required: bool = False
     ) -> None: 
@@ -21,6 +22,7 @@ class ComputedField(Field):
 def field(
     *, 
     default: Any = None, 
+    default_factory: Callable[[], Any] = None, 
     validator: Optional[ValidatorLike] = None, 
     required: bool = False
 ) -> Field: 

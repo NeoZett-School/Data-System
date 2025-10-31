@@ -16,10 +16,12 @@ class Field:
     def __init__(
         self, 
         default: Any = None, 
+        default_factory: Callable[[], Any] = None, 
         validator = None, 
         required: bool = False
     ) -> None:
-        self.default = default
+        if default and default_factory: raise OverflowError("Cannot combine both default and default_factory. Chose one.")
+        self.default = default if not default_factory else default_factory()
         self.validator = validator or (lambda x: True)
         self.required = required
         self._value = None
@@ -58,10 +60,11 @@ class ComputedField(Field):
 def field(
     *, 
     default: Any = None, 
+    default_factory: Callable[[], Any] = None, 
     validator = None, 
     required: bool = False
 ) -> Field: 
-    return Field(default, validator, required)
+    return Field(default, default_factory, validator, required)
 
 def computed_field(method) -> ComputedField:
     return ComputedField(method)
