@@ -5,7 +5,7 @@ from ._internal import (
 class Module: 
     # Basic Type defintions
     Data: Type[Data]
-    dataclass: Type[data_factory]
+    data_factory: Type[data_factory]
     is_data_factory: Type[is_data_factory]
     make_data_factory: Type[make_data_factory]
 __all__ = (
