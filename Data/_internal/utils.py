@@ -1,6 +1,6 @@
 from typing import List, Dict, Union, Type, Any
 from .factory import _Dataclass, T
-from .data import Data
+from .data import Data, V
 
 __all__ = (
     "is_data_factory", 
@@ -8,9 +8,12 @@ __all__ = (
     "validate_data", 
     "inspect_data", 
     "patch_data", 
-    "deep_update", 
-    "merge_data", 
-    "to_json_schema",
+    "diff_data", 
+    "sync_data",  
+    "to_json_schema", 
+    "diff_schema", 
+    "clone", 
+    "pretty_repr", 
 )
 
 def is_data_factory(obj: Union[T, Type[T]], /) -> bool:
@@ -69,16 +72,16 @@ def inspect_data(obj: Union[Type[Data], Data]) -> Dict[str, Any]:
         "values": data.to_dict() if data else None,
     }
 
-def patch_data(data: Data, *, validate: bool = True, **fields: Any) -> None:
+def patch_data(data: Data, *, validate: bool = True, **updates: V) -> None:
     """Will update data. Sets annotiations according to the fields."""
     anns = getattr(data, "__annotations__", {})
-    anns.update({k: type(v) for k, v in fields.items()})
-    for k, v in fields.items():
+    anns.update({k: type(v) for k, v in updates.items()})
+    for k, v in updates.items():
         object.__setattr__(data, k, v)
     if validate:
         data.__raise_typing_error__()
 
-def diff_data(a: "Data", b: "Data") -> Dict:
+def diff_data(a: Data, b: Data) -> Dict:
     "Retrieves fields that doesn't appear in the other's structure."
     diffs = {}
     for k, v in a.items():
@@ -86,26 +89,45 @@ def diff_data(a: "Data", b: "Data") -> Dict:
             diffs[k] = (v, b.get(k))
     return diffs
 
-def deep_update(a: "Data", b: "Data") -> None:
-    for k, v in b.items():
-        if isinstance(v, dict) and isinstance(a.get(k), dict):
-            deep_update(a[k], v)
-        else:
-            a[k] = v
+def sync_data(target: Data, source: Data, *, overwrite: bool = False) -> None:
+    """Copy missing or differing values from source to target."""
+    for k, v in source.items():
+        if overwrite or k not in target or target[k] != v:
+            setattr(target, k, v)
 
-def merge_data(a: "Data", b: "Data", *, deep: bool = False) -> "Data":
-    """Return a new Data instance combining fields from both (b overrides a)."""
-    new_dict = a.to_dict().copy()
-    for k, v in b.items():
-        if deep and isinstance(v, dict) and isinstance(new_dict.get(k), dict):
-            new_dict[k].update(v)
-        else:
-            new_dict[k] = v
-    return type(a)(new_dict)
-
-def to_json_schema(cls: Type["Data"]) -> Dict[str, Any]:
+def to_json_schema(cls: Type[Data]) -> Dict[str, Any]:
     schema = {"type": "object", "properties": {}}
     for k, v in getattr(cls, "__annotations__", {}).items():
         t = getattr(v, "__name__", str(v))
         schema["properties"][k] = {"type": t.lower()}
     return schema
+
+def diff_schema(a: Type[Data], b: Type[Data]) -> Dict[str, Dict[str, Any]]:
+    """Compare field annotations between two Data types."""
+    diffs = {}
+    for k, v in a.__annotations__.items():
+        if k not in b.__annotations__:
+            diffs[k] = {"only_in": a.__name__}
+        elif b.__annotations__[k] != v:
+            diffs[k] = {"a": v, "b": b.__annotations__[k]}
+    for k in b.__annotations__:
+        if k not in a.__annotations__:
+            diffs[k] = {"only_in": b.__name__}
+    return diffs
+
+def clone(data: Data, **updates: V) -> Data:
+    """Clone a Data object with optional field overrides."""
+    new = data.copy()
+    for k, v in updates.items():
+        setattr(new, k, v)
+    return new
+
+def pretty_repr(data: Data) -> str:
+    """Return a formatted string showing fields, types, and values."""
+    lines = []
+    annotations = object.__getattribute__(data, "annotations")
+    if not annotations: return
+    for k, v in data.items():
+        t = annotations.get(k, type(v))
+        lines.append(f"{k}: {t.__name__} = {v!r}")
+    return "\n".join(lines)

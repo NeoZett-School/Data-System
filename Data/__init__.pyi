@@ -4,14 +4,17 @@ from ._internal import (
     FrozenData, 
     data_factory, 
     is_data_factory, 
-    make_data_factory,
-    validate_data,
-    inspect_data,
+    make_data_factory, 
+    field, 
+    validate_data, 
+    inspect_data, 
     patch_data, 
     diff_data, 
-    deep_update, 
-    merge_data, 
-    to_json_schema
+    sync_data, 
+    to_json_schema, 
+    diff_schema, 
+    clone, 
+    pretty_repr, 
 )
 
 CallableUtility = Callable[(...), Any]
@@ -24,13 +27,16 @@ class Module:
     data_factory: DataFactoryDecorator
     is_data_factory: CallableUtility
     make_data_factory: CallableUtility
+    field: CallableUtility
     validate_data: CallableUtility
     inspect_data: CallableUtility
     patch_data: CallableUtility
     diff_data: CallableUtility
-    deep_update: CallableUtility
-    merge_data: CallableUtility
+    sync_data: CallableUtility
     to_json_schema: CallableUtility
+    diff_schema: CallableUtility
+    clone: CallableUtility
+    pretty_repr: CallableUtility
 
 __all__ = (
     'Data', 
@@ -38,12 +44,15 @@ __all__ = (
     'data_factory', 
     'is_data_factory', 
     'make_data_factory', 
+    'field', 
     'validate_data', 
     'inspect_data', 
     'patch_data', 
     'diff_data', 
-    'deep_update', 
-    'merge_data', 
+    'sync_data', 
     'to_json_schema', 
+    'diff_schema', 
+    'clone', 
+    'pretty_repr', 
     'Module',
 )

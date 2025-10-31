@@ -26,13 +26,16 @@ from ._internal import (
     data_factory, 
     is_data_factory, 
     make_data_factory, 
+    field, 
     validate_data,
     inspect_data,
     patch_data, 
     diff_data, 
-    deep_update, 
-    merge_data, 
-    to_json_schema
+    sync_data, 
+    to_json_schema, 
+    diff_schema, 
+    clone, 
+    pretty_repr, 
 )
 import sys
 
@@ -50,6 +53,8 @@ class Module:
                 return data_factory
             case "is_data_factory":
                 return is_data_factory
+            case "field":
+                return field
             case "make_data_factory":
                 return make_data_factory
             case "validate_data":
@@ -60,12 +65,16 @@ class Module:
                 return patch_data
             case "diff_data":
                 return diff_data
-            case "deep_update":
-                return deep_update
-            case "merge_data":
-                return merge_data
+            case "sync_data":
+                return sync_data
             case "to_json_schema":
                 return to_json_schema
+            case "diff_schema":
+                return diff_schema
+            case "clone":
+                return clone
+            case "pretty_repr":
+                return pretty_repr
             case "Module":
                 return Module
         raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

@@ -1,6 +1,8 @@
 from typing import Dict, Any, Type
 from abc import ABCMeta
 
+__all__ = ("DataMeta",)
+
 class DataMeta(ABCMeta):
     """Metaclass to process configuration arguments at class definition time."""
     __meta_config__: Dict[str, Any]

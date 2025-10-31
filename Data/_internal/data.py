@@ -5,10 +5,12 @@ from typing import (
     Literal, overload, KeysView, ValuesView, ItemsView, Union, 
     FrozenSet, get_origin, get_args
 )
+from .field import Field
 from .meta import DataMeta
+import os
 import json
 
-V = TypeVar("V")
+V = TypeVar("V", default=Any)
 DictSchema = Dict[str, V]
 
 class Data(Generic[V], Iterable, metaclass=DataMeta):
@@ -20,7 +22,8 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
     __include_methods__: bool
     __auto_cast__: bool
     __meta_config__: Dict[str, Any]
-    __slots__ = ("content", "annotations", "__frozen__", "__include_methods__", "__auto_cast__", "__meta_config__", "__original__", "__was_frozen__",) # __weakref__ is already defined in generic
+    __fields__: Dict[str, Field]
+    __slots__ = ("content", "annotations", "__frozen__", "__include_methods__", "__auto_cast__", "__meta_config__", "__fields__", "__original__", "__was_frozen__",) # __weakref__ is already defined in generic
 
     def __init__(self, value: Optional[DictSchema] = None, frozen: bool = False, include_methods: bool = False, auto_cast: bool = True, **kwargs: Any) -> None:
         """Initializes the Data object with optional dictionary content and keyword arguments."""
@@ -33,6 +36,7 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
         object.__setattr__(self, "__frozen__", frozen or self.meta.get("frozen", False))
         object.__setattr__(self, "__include_methods__", include_methods or self.meta.get("include_methods", False))
         object.__setattr__(self, "__auto_cast__", auto_cast or self.meta.get("auto_cast", False))
+        object.__setattr__(self, "__fields__", {k: v for k, v in instance_content.items() if isinstance(v, Field)})
         try:
             object.__setattr__(self, "__meta_config__", dict(object.__getattribute__(self, "__class__").__meta_config__))
         except AttributeError: pass # Then the "__meta_config__" is most likely read-only, when we don't use "data_factory"
@@ -51,6 +55,14 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
         """Recursively checks if a value conforms to a given typing annotation."""
         origin = get_origin(annotation)
         args = get_args(annotation)
+
+        if isinstance(value, Field):
+            field = value
+            value = field.value
+            if value == None:
+                if field.required:
+                    return False
+                value = field.default
 
         if origin is None:
             if annotation is Any or isinstance(annotation, TypeVar): 
@@ -109,18 +121,26 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
         if not annotations:
             return
         incorrect = self.__get_incorrect_typing__(annotations)
-        content = object.__getattribute__(self, "content")
-        validators = self.meta.get("validators", {})
-        for field, validator in validators.items():
-            if not callable(validator): continue
-            if field in content and not validator(content[field]):
-                incorrect.append(field)
+        for name, field in object.__getattribute__(self, "__fields__").items():
+            if not field.value == None and not field.validator(field.value):
+                incorrect.append(name)
         if incorrect:
             raise TypeError(f"Incorrect typing for fields: {', '.join(incorrect)}")
     
+    def __replace_fields__(self, content: DictSchema) -> DictSchema:
+        return {k: v if not isinstance(v, Field) else v.value or v.default for k, v in content.items()}
+    
+    def __get_content__(self) -> DictSchema:
+        return self.__replace_fields__(object.__getattribute__(self, "content"))
+    
+    def snapshot(self, version: Optional[str] = None) -> "FrozenData[V]":
+        frozen = FrozenData(self.to_dict())
+        frozen.__meta_config__["version"] = version or "snapshot"
+        return frozen
+    
     def copy(self) -> "Data[V]":
         """Creates a shallow copy of the Data object."""
-        return type(self)(object.__getattribute__(self, "content").copy())
+        return type(self)(self.__get_content__().copy())
     
     @classmethod
     def from_dict(cls: Type["Data[V]"], data: DictSchema) -> "Data[V]":
@@ -129,7 +149,7 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
     
     def to_dict(self) -> Union[DictSchema, FrozenSet]:
         """Converts the Data object to a standard dictionary."""
-        content = dict(object.__getattribute__(self, "content"))
+        content = dict(self.__get_content__())
         if object.__getattribute__(self, "__frozen__"):
             return frozenset(content)
         return content
@@ -141,15 +161,31 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
     def to_json(self, indent: int = 2) -> str:
         return json.dumps(self.to_dict(), indent=indent)
     
+    @classmethod
+    def from_env(cls: Type["Data"], prefix: str = "") -> "Data":
+        """Load Data fields from environment variables."""
+        data = {}
+        for k in cls.__annotations__:
+            env_key = f"{prefix}{k}".upper()
+            if env_key in os.environ:
+                data[k] = os.environ[env_key]
+        return cls(data)
+
+    @classmethod
+    def from_file(cls: Type["Data"], path: str) -> "Data":
+        """Load a Data instance from a JSON file."""
+        with open(path, "r") as f:
+            return cls.from_dict(json.load(f))
+    
     def keys(self) -> KeysView[str]:
         """Return a set-like object providing a view on the data's keys."""
-        return object.__getattribute__(self, "content").keys()
+        return self.__get_content__().keys()
     def values(self) -> ValuesView[V]:
         """Return a set-like object providing a view on the data's values."""
-        return object.__getattribute__(self, "content").values()
+        return self.__get_content__().values()
     def items(self) -> ItemsView[str, V]:
         """Return a set-like object providing a view on the data's items."""
-        return object.__getattribute__(self, "content").items()
+        return self.__get_content__().items()
     
     @overload
     def get(self, key: str, default: Literal[None] = None) -> Optional[V]: ...
@@ -157,7 +193,7 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
     def get(self, key: str, default: V) -> V: ...
     def get(self, key: str, default: Optional[V] = None) -> Optional[V]:
         """Return the value for key if key is in the dictionary, else default."""
-        return object.__getattribute__(self, "content").get(key, default)
+        return self.__get_content__().get(key, default)
     
     @overload
     def setdefault(self, key: str, default: Literal[None] = None) -> Optional[V]: ...
@@ -165,8 +201,10 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
     def setdefault(self, key: str, default: V) -> V: ...
     def setdefault(self, key: str, default: Optional[V] = None) -> Optional[V]:
         if object.__getattribute__(self, "__frozen__"):
-            return object.__getattribute__(self, "content").get(key, default)
+            return self.__get_content__().get(key, default)
         result = object.__getattribute__(self, "content").setdefault(key, default)
+        if isinstance(result, Field):
+            return result.value
         self.__raise_typing_error__()
         return result
     
@@ -182,8 +220,11 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
         raise a KeyError.
         """
         if object.__getattribute__(self, "__frozen__"):
-            return object.__getattribute__(self, "content").get(key, default)
-        return object.__getattribute__(self, "content").pop(key, default)
+            return self.__get_content__().get(key, default)
+        if key in object.__getattribute__(self, "content"):
+            result = object.__getattribute__(self, "content").pop(key, default)
+            if isinstance(result, Field): return result.value
+        else: return default
     
     def update(self, data: DictSchema) -> None:
         if object.__getattribute__(self, "__frozen__"):
@@ -198,9 +239,12 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
     
     def __call__(self, key: str, /, *args: Any, **kwargs: Any) -> Any:
         """Calls a callable stored in the data with the given key, passing any additional arguments."""
-        return object.__getattribute__(self, "content")[key](*args, **kwargs)
+        value = object.__getattribute__(self, "content").get(key)
+        if not callable(value): 
+            raise TypeError(f"'{key}' is not callable. Are you sure you are calling this correctly?")
+        return value(*args, **kwargs)
     
-    def __getattribute__(self, name: str) -> Any:
+    def __getattribute__(self, name: str) -> V:
         # Fast path: directly handle internal attributes
         if name in {"__class__", "__dict__", "__include_methods__", "__frozen__", "__meta_config__", "content"}:
             return object.__getattribute__(self, name)
@@ -217,17 +261,18 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
         this_keys = {k for c in this_cls.__mro__ for k in c.__dict__ if k not in data_keys}
 
         if name in this_keys and object.__getattribute__(self, "__include_methods__"):
-            return object.__getattribute__(self, name)
+            value = object.__getattribute__(self, name)
+            if callable(value): return value
 
         # Try to retrieve from 'content'
-        content = object.__getattribute__(self, "content")
+        content = self.__get_content__()
         if name in content:
             return content[name]
 
         # Otherwise, standard Python AttributeError
         raise AttributeError(f"'{this_cls.__name__}' object has no attribute '{name}'")
     
-    def __setattr__(self, name: str, value: Any) -> None:
+    def __setattr__(self, name: str, value: V) -> None:
         if object.__getattribute__(self, "__frozen__"):
             return
         if object.__getattribute__(self, "__auto_cast__"):
@@ -237,7 +282,11 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
                     value = expected(value)
                 except Exception:
                     pass
-        object.__getattribute__(self, "content")[name] = value
+        prev_value = object.__getattribute__(self, "content").get(name, None)
+        if isinstance(prev_value, Field): 
+            prev_value.value = value
+        else:
+            object.__getattribute__(self, "content")[name] = value
         self.__raise_typing_error__()
     
     def __enter__(self) -> "Data":
@@ -252,7 +301,7 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
         object.__setattr__(self, "__frozen__", object.__getattribute__(self, "__was_frozen__"))
     
     def __getitem__(self, key: str) -> V:
-        return object.__getattribute__(self, "content")[key]
+        return self.__get_content__()[key]
     def __setitem__(self, key: str, value: V) -> None:
         if object.__getattribute__(self, "__frozen__"):
             return
@@ -263,7 +312,11 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
                     value = expected(value)
                 except Exception:
                     pass
-        object.__getattribute__(self, "content")[key] = value
+        prev_value = object.__getattribute__(self, "content").get(key, None)
+        if isinstance(prev_value, Field): 
+            prev_value.value = value
+        else:
+            object.__getattribute__(self, "content")[key] = value
         self.__raise_typing_error__()
     def __delitem__(self, key: str) -> None:
         if object.__getattribute__(self, "__frozen__"):
