@@ -32,46 +32,51 @@ def is_data_factory(obj: Union[T, Type[T]], /) -> bool:
 
 @overload
 def make_data_factory(
-    cls: Type[T], /, 
-    value: Optional[Dict[str, V]] = None, 
-    recycle: Literal[False] = False,
-    **kwargs
+    cls: Type[T], /,
+    value: Optional[Dict[str, V]] = None,
+    decorate: Literal[False] = False,
+    **kwargs: Any
 ) -> T: ...
-
 @overload
 def make_data_factory(
-    cls: Type[T], /, 
-    value: Optional[Dict[str, V]] = None, 
-    recycle: bool = False, 
-    frozen: bool = False, 
+    cls: Type[T], /,
+    value: Optional[Dict[str, V]] = None,
+    decorate: Literal[True] = True,
+    frozen: bool = False,
     include_methods: bool = False,
-    **kwargs
+    **kwargs: Any
 ) -> T: ...
 
 def make_data_factory(
-    cls: Type[T], /, 
-    value: Optional[Dict[str, V]] = None, 
-    recycle: bool = False, 
-    frozen: bool = False, 
-    include_methods: bool = False, 
-    **kwargs
+    cls: Type[T], /,
+    value: Optional[Dict[str, V]] = None,
+    decorate: bool = False,
+    frozen: bool = False,
+    include_methods: bool = False,
+    **kwargs: Any
 ) -> T:
     """
-    Creates an instance of a dataclass with the provided keyword arguments.
+    Creates an instance of a dataclass, optionally decorating it first.
 
     Args:
-        cls (T): The dataclass type.
-        value (Optional dict): a dictionary representation.
-        recycle (bool): If you haven't already decorated the class.
-        **kwargs: The fields and their values to initialize the dataclass.
+        cls (Type[T]): The dataclass type or base class.
+        value (Optional[dict]): A dictionary of field values.
+        decorate (bool): If True, applies the data factory decorator.
+        frozen (bool): Whether to make the resulting dataclass immutable.
+        include_methods (bool): Whether to include methods in the data instance.
+        **kwargs: Additional field values.
 
     Returns:
         T: An instance of the dataclass.
     """
-    if recycle:
+    if decorate:
         cls = data_factory(cls, frozen=frozen, include_methods=include_methods)
+    elif frozen or include_methods:
+        raise ValueError("frozen/include_methods are only valid when decorate=True.")
+
     if not is_data_factory(cls):
         raise TypeError("The provided class is not a dataclass.")
+
     return cls(value=value, **kwargs)
 
 def validate_data(data: "Data", strict: bool = False) -> List[str]:
