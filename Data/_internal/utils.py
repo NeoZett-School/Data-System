@@ -19,7 +19,9 @@ __all__ = (
 
 T = TypeVar("T", bound=Data)
 
-class _TypedDataclass(Data[V]):
+Schema = TypeVar("Schema", bound=Dict[str, Any])
+
+class _TypedDataclass(Data[V], Generic[Schema, V]): # We inherit both
     ...
 
 def is_data_factory(obj: Union[T, Type[T]], /) -> bool:
