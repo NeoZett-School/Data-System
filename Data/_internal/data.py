@@ -6,6 +6,7 @@ from typing import (
     FrozenSet, get_origin, get_args
 )
 from .meta import DataMeta
+import json
 
 V = TypeVar("V")
 DictSchema = Dict[str, V]
@@ -17,10 +18,11 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
 
     __frozen__: bool
     __include_methods__: bool
+    __auto_cast__: bool
     __meta_config__: Dict[str, Any]
-    __slots__ = ("content", "annotations", "__frozen__", "__include_methods__", "__meta_config__", "__original__", "__was_frozen__",) # __weakref__ is already defined in generic
+    __slots__ = ("content", "annotations", "__frozen__", "__include_methods__", "__auto_cast__", "__meta_config__", "__original__", "__was_frozen__",) # __weakref__ is already defined in generic
 
-    def __init__(self, value: Optional[DictSchema] = None, frozen: bool = False, include_methods: bool = False, **kwargs: Any) -> None:
+    def __init__(self, value: Optional[DictSchema] = None, frozen: bool = False, include_methods: bool = False, auto_cast: bool = True, **kwargs: Any) -> None:
         """Initializes the Data object with optional dictionary content and keyword arguments."""
 
         instance_content = dict()
@@ -30,6 +32,7 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
         object.__setattr__(self, "content", instance_content)
         object.__setattr__(self, "__frozen__", frozen or self.meta.get("frozen", False))
         object.__setattr__(self, "__include_methods__", include_methods or self.meta.get("include_methods", False))
+        object.__setattr__(self, "__auto_cast__", auto_cast or self.meta.get("auto_cast", False))
         try:
             object.__setattr__(self, "__meta_config__", dict(object.__getattribute__(self, "__class__").__meta_config__))
         except AttributeError: pass # Then the "__meta_config__" is most likely read-only, when we don't use "data_factory"
@@ -50,7 +53,7 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
         args = get_args(annotation)
 
         if origin is None:
-            if annotation in (Any, TypeVar): 
+            if annotation is Any or isinstance(annotation, TypeVar): 
                 return True
             if value is None and annotation is type(None):
                 return True
@@ -106,6 +109,12 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
         if not annotations:
             return
         incorrect = self.__get_incorrect_typing__(annotations)
+        content = object.__getattribute__(self, "content")
+        validators = self.meta.get("validators", {})
+        for field, validator in validators.items():
+            if not callable(validator): continue
+            if field in content and not validator(content[field]):
+                incorrect.append(field)
         if incorrect:
             raise TypeError(f"Incorrect typing for fields: {', '.join(incorrect)}")
     
@@ -124,6 +133,13 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
         if object.__getattribute__(self, "__frozen__"):
             return frozenset(content)
         return content
+
+    @classmethod
+    def from_json(cls, s: str) -> "Data":
+        return cls.from_dict(json.loads(s))
+    
+    def to_json(self, indent: int = 2) -> str:
+        return json.dumps(self.to_dict(), indent=indent)
     
     def keys(self) -> KeysView[str]:
         """Return a set-like object providing a view on the data's keys."""
@@ -214,6 +230,13 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
     def __setattr__(self, name: str, value: Any) -> None:
         if object.__getattribute__(self, "__frozen__"):
             return
+        if object.__getattribute__(self, "__auto_cast__"):
+            expected = self.annotations.get(name)
+            if expected:
+                try:
+                    value = expected(value)
+                except Exception:
+                    pass
         object.__getattribute__(self, "content")[name] = value
         self.__raise_typing_error__()
     
@@ -233,6 +256,13 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
     def __setitem__(self, key: str, value: V) -> None:
         if object.__getattribute__(self, "__frozen__"):
             return
+        if object.__getattribute__(self, "__auto_cast__"):
+            expected = self.annotations.get(key)
+            if expected:
+                try:
+                    value = expected(value)
+                except Exception:
+                    pass
         object.__getattribute__(self, "content")[key] = value
         self.__raise_typing_error__()
     def __delitem__(self, key: str) -> None:
@@ -259,3 +289,23 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
         return str(object.__getattribute__(self, "content"))
     def __hash__(self) -> int:
         return hash(frozenset(object.__getattribute__(self, "content").items()))
+
+class FrozenData(Data):
+    """Frozen Data is completely immutable and cannot be changed."""
+
+    __slots__ = Data.__slots__ + ("__weakref__",)
+
+    def __init__(self, value: Optional[DictSchema] = None, include_methods: bool = False, **kwargs: Any) -> None:
+        super().__init__(value=value, frozen=True, include_methods=include_methods, **kwargs)
+    
+    def setdefault(self, key: str, default: Optional[V] = None) -> Optional[V]: return
+    def pop(self, key: str, default: Optional[V] = None) -> Optional[V]: return
+    def update(self, data: DictSchema) -> None: return
+    def clear(self) -> None: return
+    def __setattr__(self, name: str, value: Any) -> None:
+        raise AttributeError(f"Cannot modify frozen data: '{name}'")
+    def __enter__(self) -> None: return
+    def __exit__(self, *args: Any) -> None: return
+    def __setitem__(self, key: str, value: Any) -> None:
+        raise AttributeError(f"Cannot modify frozen data: '{key}'")
+    def __delitem__(self, key: str) -> None: return

@@ -21,7 +21,18 @@ Copyright (c) 2024-2025 Neo Zetterberg
 """
 
 from ._internal import (
-    Data, data_factory, is_data_factory, make_data_factory
+    Data, 
+    FrozenData, 
+    data_factory, 
+    is_data_factory, 
+    make_data_factory, 
+    validate_data,
+    inspect_data,
+    patch_data, 
+    diff_data, 
+    deep_update, 
+    merge_data, 
+    to_json_schema
 )
 import sys
 
@@ -33,12 +44,28 @@ class Module:
         match name:
             case "Data":
                 return Data
+            case "FrozenData":
+                return FrozenData
             case "data_factory":
                 return data_factory
             case "is_data_factory":
                 return is_data_factory
             case "make_data_factory":
                 return make_data_factory
+            case "validate_data":
+                return validate_data
+            case "inspect_data":
+                return inspect_data
+            case "patch_data":
+                return patch_data
+            case "diff_data":
+                return diff_data
+            case "deep_update":
+                return deep_update
+            case "merge_data":
+                return merge_data
+            case "to_json_schema":
+                return to_json_schema
             case "Module":
                 return Module
         raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
