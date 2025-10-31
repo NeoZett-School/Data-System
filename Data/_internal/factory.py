@@ -12,7 +12,11 @@ class _Dataclass(Data):
         for base in reversed(cls.__mro__):
             base_dict = getattr(base, '__dict__', {})
             for k, v in base_dict.items():
-                if not k.startswith("_") and not callable(v):
+                if (
+                    not k.startswith("_")
+                    and not callable(v)
+                    and k not in {"annotations", "content"}
+                ):
                     instance_content[k] = v
 
         instance_content.update(kwargs)
