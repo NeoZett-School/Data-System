@@ -98,8 +98,7 @@ def sync_data(target: Data, source: Data, *, overwrite: bool = False) -> None:
 def to_schema(cls: Type[Data]) -> Dict[str, Any]:
     schema = {"type": "object", "properties": {}}
     for k, v in getattr(cls, "__annotations__", {}).items():
-        t = getattr(v, "__name__", str(v))
-        schema["properties"][k] = {"type": t.lower()}
+        schema["properties"][k] = {"type": v}
     return schema
 
 def diff_schema(a: Type[Data], b: Type[Data]) -> Dict[str, Dict[str, Any]]:
