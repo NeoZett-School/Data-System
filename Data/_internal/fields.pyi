@@ -12,20 +12,22 @@ class Field:
         default: Any = None, 
         default_factory: Callable[[], Any] = None, 
         validator: Optional[ValidatorLike] = None, 
-        required: bool = False
+        required: bool = False, 
+        classfield: bool = False
     ) -> None: 
         ...
 
 class ComputedField(Field):
-    def __init__(self, method: Callable[[T], V]) -> None: ...
+    def __init__(self, method: Callable[[T], V], classfield: bool = False) -> None: ...
 
 def field(
     *, 
     default: Any = None, 
     default_factory: Callable[[], Any] = None, 
     validator: Optional[ValidatorLike] = None, 
-    required: bool = False
+    required: bool = False, 
+    classfield: bool = False
 ) -> Field: 
     ...
 
-def computed_field(method: Callable[[T], V]) -> ComputedField: ...
+def computed_field(method: Callable[[T], V], classfield: bool = False) -> ComputedField: ...

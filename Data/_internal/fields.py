@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 class Field:
     default: Any
     required: bool
+    classfield: bool
     if TYPE_CHECKING:
         validator: ValidatorLike
         _value: V
@@ -18,12 +19,14 @@ class Field:
         default: Any = None, 
         default_factory: Callable[[], Any] = None, 
         validator = None, 
-        required: bool = False
+        required: bool = False, 
+        classfield: bool = False
     ) -> None:
         if default and default_factory: raise OverflowError("Cannot combine both default and default_factory. Chose one.")
         self.default = default if not default_factory else default_factory()
         self.validator = validator or (lambda x: True)
         self.required = required
+        self.classfield = classfield
         self._value = None
     
     def copy(self) -> "Field":
@@ -42,9 +45,11 @@ class ComputedField(Field):
         method: Callable[[T], V]
         data: T
         recursion: bool
+        classfield: bool
 
-    def __init__(self, method) -> None:
+    def __init__(self, method, classfield: bool) -> None:
         self.method = method
+        self.classfield = classfield
         self.data = None
         self.recursion = False
     
@@ -70,9 +75,10 @@ def field(
     default: Any = None, 
     default_factory: Callable[[], Any] = None, 
     validator = None, 
-    required: bool = False
+    required: bool = False, 
+    classfield: bool = False
 ) -> Field: 
-    return Field(default=default, default_factory=default_factory, validator=validator, required=required)
+    return Field(default=default, default_factory=default_factory, validator=validator, required=required, classfield=classfield)
 
-def computed_field(method) -> ComputedField:
-    return ComputedField(method)
+def computed_field(method, classfield: bool = False) -> ComputedField:
+    return ComputedField(method, classfield)
