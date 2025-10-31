@@ -1,22 +1,16 @@
-from Data import Data, data_factory, is_data_factory, make_data_factory, field, computed_field
+from Data import Data, data_factory, is_data_factory, make_data_factory, field, computed_field, pretty_repr, inspect_data
 
-@data_factory
-class Foo:
-    x: int = field(default=1)
-
-    def say_x(self) -> None:
-        print(self.x)
-
-    x_hello = computed_field(lambda self: f"{self.x} hello")
+@data_factory(include_methods=True)
+class Date:
+    year: int = 2025
+    month: int = 10
+    day: int = field(required=True)
+    year_month_day = computed_field(lambda self: f"{self.year} - {self.month} - {self.day}")
 
     #@computed_field
-    #def x_hello(self):
-    #    return f"{self.x} hello"
+    #def year_month(self): ... 
+    # Works. But this will show as a function.
 
-class Bar(Foo, include_methods=True):
-    y: int = 2
-
-b = Bar()
-b.x += 5
-b.say_x()
-print(b.x_hello)
+today = Date(day=31) # Day is required, or you'll get an error.
+print(pretty_repr(today))
+hi=computed_field()

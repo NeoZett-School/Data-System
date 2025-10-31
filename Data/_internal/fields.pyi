@@ -15,8 +15,7 @@ class Field:
         ...
 
 class ComputedField(Field):
-    def __init__(self, method: Callable[[], V]) -> None:
-        self.method = method
+    def __init__(self, method: Callable[[], V]) -> None: ...
 
 def field(
     *, 

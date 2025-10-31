@@ -1,5 +1,6 @@
 from typing import List, Dict, Union, Type, Any
 from .factory import _Dataclass, T
+from .fields import Field, ComputedField
 from .data import Data, V
 
 __all__ = (
@@ -61,14 +62,16 @@ def inspect_data(obj: Union[Type[Data], Data]) -> Dict[str, Any]:
     """
     cls = obj if isinstance(obj, type) else type(obj)
     data = obj if isinstance(obj, Data) else None
+    defaults = {}
+    for k in getattr(cls, "__annotations__", {}):
+        if not hasattr(cls, k):
+            continue
+        value = getattr(cls, k, None)
+        defaults[k] = value if not isinstance(value, Field) else value.default if not isinstance(value, ComputedField) else "<ComputedField>"
     return {
         "name": cls.__name__,
         "annotations": getattr(cls, "__annotations__", {}),
-        "defaults": {
-            k: getattr(cls, k, None)
-            for k in getattr(cls, "__annotations__", {})
-            if hasattr(cls, k)
-        },
+        "defaults": defaults,
         "values": data.to_dict() if data else None,
     }
 
@@ -77,7 +80,7 @@ def patch_data(data: Data, *, validate: bool = True, **updates: V) -> None:
     anns = getattr(data, "__annotations__", {})
     anns.update({k: type(v) for k, v in updates.items()})
     for k, v in updates.items():
-        object.__setattr__(data, k, v)
+        setattr(data, k, v)
     if validate:
         data.__raise_typing_error__()
 
@@ -125,8 +128,8 @@ def pretty_repr(data: Data) -> str:
     """Return a formatted string showing fields, types, and values."""
     lines = []
     annotations = object.__getattribute__(data, "annotations")
-    if not annotations: return
+    lines.append(f"<Data{f" \"{data.__class__.__name__}\"" if not data.__class__.__name__ == "Data" else ""} object>:")
     for k, v in data.items():
         t = annotations.get(k, type(v))
-        lines.append(f"{k}: {t.__name__} = {v!r}")
+        lines.append(f"  {k}: {t.__name__} = {v!r}")
     return "\n".join(lines)
