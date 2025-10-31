@@ -12,7 +12,7 @@ from ._internal import (
     patch_data, 
     diff_data, 
     sync_data, 
-    to_json_schema, 
+    to_schema, 
     diff_schema, 
     clone, 
     pretty_repr, 
@@ -35,7 +35,7 @@ class Module:
     patch_data: CallableUtility
     diff_data: CallableUtility
     sync_data: CallableUtility
-    to_json_schema: CallableUtility
+    to_schema: CallableUtility
     diff_schema: CallableUtility
     clone: CallableUtility
     pretty_repr: CallableUtility
@@ -53,7 +53,7 @@ __all__ = (
     'patch_data', 
     'diff_data', 
     'sync_data', 
-    'to_json_schema', 
+    'to_schema', 
     'diff_schema', 
     'clone', 
     'pretty_repr', 

@@ -5,7 +5,7 @@ from typing import (
     Literal, overload, KeysView, ValuesView, ItemsView, Union, 
     FrozenSet, get_origin, get_args
 )
-from .field import Field
+from .fields import Field, ComputedField
 from .meta import DataMeta
 import os
 import json
@@ -126,13 +126,13 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
             return
         incorrect = self.__get_incorrect_typing__(annotations)
         for name, field in object.__getattribute__(self, "__fields__").items():
-            if not field.value == None and not field.validator(field.value):
+            if not isinstance(field, ComputedField) and not field.value == None and not field.validator(field.value):
                 incorrect.append(name)
         if incorrect:
             raise TypeError(f"Incorrect typing for fields: {', '.join(incorrect)}")
     
     def __replace_fields__(self, content: DictSchema) -> DictSchema:
-        return {k: v if not isinstance(v, Field) else v.value or v.default for k, v in content.items()}
+        return {k: v if not isinstance(v, Field) else v.value or v.default if not isinstance(v, ComputedField) else v.value for k, v in content.items()}
     
     def __get_content__(self) -> DictSchema:
         return self.__replace_fields__(object.__getattribute__(self, "content"))

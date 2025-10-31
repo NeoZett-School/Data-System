@@ -1,6 +1,6 @@
 from .data import Data, FrozenData
 from .factory import data_factory
-from .field import field, computed_field
+from .fields import field, computed_field
 from .utils import (
     is_data_factory, 
     make_data_factory, 
@@ -9,7 +9,7 @@ from .utils import (
     patch_data, 
     diff_data, 
     sync_data, 
-    to_json_schema, 
+    to_schema, 
     diff_schema, 
     clone, 
     pretty_repr, 
@@ -21,14 +21,14 @@ __all__ = (
     "data_factory", 
     "is_data_factory", 
     "make_data_factory", 
-    "field", 
+    "fields", 
     "computed_field", 
     "validate_data", 
     "inspect_data", 
     "patch_data", 
     "diff_data", 
     "sync_data", 
-    "to_json_schema", 
+    "to_schema", 
     "diff_schema", 
     "clone", 
     "pretty_repr", 

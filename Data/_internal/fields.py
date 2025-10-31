@@ -35,14 +35,20 @@ class ComputedField(Field):
     if TYPE_CHECKING:
         method: Callable[[Data], V]
         data: Data
+        recursion: bool
 
     def __init__(self, method) -> None:
         self.method = method
         self.data = None
+        self.recursion = False
     
     @property
     def value(self) -> Any:
-        return self.method(self.data)
+        if not self.recursion:
+            self.recursion = True
+            result = self.method(self.data)
+            self.recursion = False
+            return result
     
     @value.setter
     def value(self, new: Any) -> None:

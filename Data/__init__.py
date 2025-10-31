@@ -33,7 +33,7 @@ from ._internal import (
     patch_data, 
     diff_data, 
     sync_data, 
-    to_json_schema, 
+    to_schema, 
     diff_schema, 
     clone, 
     pretty_repr, 
@@ -70,8 +70,8 @@ class Module:
                 return diff_data
             case "sync_data":
                 return sync_data
-            case "to_json_schema":
-                return to_json_schema
+            case "to_schema":
+                return to_schema
             case "diff_schema":
                 return diff_schema
             case "clone":

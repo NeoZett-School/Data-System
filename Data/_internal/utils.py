@@ -10,7 +10,7 @@ __all__ = (
     "patch_data", 
     "diff_data", 
     "sync_data",  
-    "to_json_schema", 
+    "to_schema", 
     "diff_schema", 
     "clone", 
     "pretty_repr", 
@@ -95,7 +95,7 @@ def sync_data(target: Data, source: Data, *, overwrite: bool = False) -> None:
         if overwrite or k not in target or target[k] != v:
             setattr(target, k, v)
 
-def to_json_schema(cls: Type[Data]) -> Dict[str, Any]:
+def to_schema(cls: Type[Data]) -> Dict[str, Any]:
     schema = {"type": "object", "properties": {}}
     for k, v in getattr(cls, "__annotations__", {}).items():
         t = getattr(v, "__name__", str(v))
