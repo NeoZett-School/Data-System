@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Callable, Any
+from typing import TYPE_CHECKING, Callable, Type, Any
 if TYPE_CHECKING:
     from factory import T
     from data import V
@@ -8,6 +8,7 @@ if TYPE_CHECKING:
 
 class Field:
     default: Any
+    default_factory: Type
     required: bool
     classfield: bool
     if TYPE_CHECKING:
@@ -22,15 +23,15 @@ class Field:
         required: bool = False, 
         classfield: bool = False
     ) -> None:
-        if default and default_factory: raise OverflowError("Cannot combine both default and default_factory. Chose one.")
-        self.default = default if not default_factory else default_factory()
+        self.default = default
+        self.default_factory = default_factory
         self.validator = validator or (lambda x: True)
         self.required = required
         self.classfield = classfield
         self._value = None
     
     def copy(self) -> "Field":
-        return Field(default=self.default, validator=self.validator, required=self.required)
+        return Field(default=self.default or self.default_factory(), default_factory=self.default_factory, validator=self.validator, required=self.required)
     
     @property
     def value(self) -> Any:
