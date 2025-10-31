@@ -1,5 +1,5 @@
-from typing import List, Dict, Union, Type, Literal, Optional, Any, overload
-from .factory import data_factory, _Dataclass, T
+from typing import List, Dict, Union, Type, TypeVar, Literal, Generic, Optional, Any, overload
+from .factory import data_factory, _Dataclass
 from .fields import Field, ComputedField
 from .data import Data, V
 
@@ -16,6 +16,11 @@ __all__ = (
     "clone", 
     "pretty_repr", 
 )
+
+T = TypeVar("T", bound=Data)
+
+class _TypedDataclass(Data[V]):
+    ...
 
 def is_data_factory(obj: Union[T, Type[T]], /) -> bool:
     """
@@ -45,7 +50,7 @@ def make_data_factory(
     frozen: bool = False,
     include_methods: bool = False,
     **kwargs: Any
-) -> T: ...
+) -> _TypedDataclass[T]: ...
 
 def make_data_factory(
     cls: Type[T], /,
@@ -54,21 +59,11 @@ def make_data_factory(
     frozen: bool = False,
     include_methods: bool = False,
     **kwargs: Any
-) -> T:
+) -> Union[T, _Dataclass[T]]:
     """
     Creates an instance of a dataclass, optionally decorating it first.
-
-    Args:
-        cls (Type[T]): The dataclass type or base class.
-        value (Optional[dict]): A dictionary of field values.
-        decorate (bool): If True, applies the data factory decorator.
-        frozen (bool): Whether to make the resulting dataclass immutable.
-        include_methods (bool): Whether to include methods in the data instance.
-        **kwargs: Additional field values.
-
-    Returns:
-        T: An instance of the dataclass.
     """
+
     if decorate:
         cls = data_factory(cls, frozen=frozen, include_methods=include_methods)
     elif frozen or include_methods:

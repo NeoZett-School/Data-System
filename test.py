@@ -5,7 +5,7 @@ class Date:
     year: int = 2025
     month: int = 10
     day: int = field(required=True)
-    year_month_day = computed_field(lambda self: f"{self.year} - {self.month} - {self.day}")
+    year_month_day: str = computed_field(lambda self: f"{self.year} - {self.month} - {self.day}")
 
     #@computed_field
     #def year_month(self): ... 
