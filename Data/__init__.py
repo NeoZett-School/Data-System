@@ -17,7 +17,7 @@ better access to information and storage, rather than strict field definitions.
 The package has not been tested in multiple environments yet, so please report any issues. 
 Expect a wide range of compatibility, since this package only relies on standard Python features, 
 and complex legacy structures are mostly used to provide better performance and usability.
-Copyright (c) 2024-2025 Neo Zetterberg
+Copyright (c) 2025-2026 Neo Zetterberg
 """
 
 from ._internal import (

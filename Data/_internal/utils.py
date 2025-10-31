@@ -1,5 +1,5 @@
-from typing import List, Dict, Union, Type, Any
-from .factory import _Dataclass, T
+from typing import List, Dict, Union, Type, Literal, Optional, Any, overload
+from .factory import data_factory, _Dataclass, T
 from .fields import Field, ComputedField
 from .data import Data, V
 
@@ -30,20 +30,49 @@ def is_data_factory(obj: Union[T, Type[T]], /) -> bool:
     cls = obj if isinstance(obj, type) else obj.__class__
     return issubclass(cls, _Dataclass)
 
-def make_data_factory(cls: Type[T], /, **kwargs) -> T:
+@overload
+def make_data_factory(
+    cls: Type[T], /, 
+    value: Optional[Dict[str, V]] = None, 
+    recycle: Literal[False] = False,
+    **kwargs
+) -> T: ...
+
+@overload
+def make_data_factory(
+    cls: Type[T], /, 
+    value: Optional[Dict[str, V]] = None, 
+    recycle: bool = False, 
+    frozen: bool = False, 
+    include_methods: bool = False,
+    **kwargs
+) -> T: ...
+
+def make_data_factory(
+    cls: Type[T], /, 
+    value: Optional[Dict[str, V]] = None, 
+    recycle: bool = False, 
+    frozen: bool = False, 
+    include_methods: bool = False, 
+    **kwargs
+) -> T:
     """
     Creates an instance of a dataclass with the provided keyword arguments.
 
     Args:
         cls (T): The dataclass type.
+        value (Optional dict): a dictionary representation.
+        recycle (bool): If you haven't already decorated the class.
         **kwargs: The fields and their values to initialize the dataclass.
 
     Returns:
         T: An instance of the dataclass.
     """
+    if recycle:
+        cls = data_factory(cls, frozen=frozen, include_methods=include_methods)
     if not is_data_factory(cls):
         raise TypeError("The provided class is not a dataclass.")
-    return cls(**kwargs)
+    return cls(value=value, **kwargs)
 
 def validate_data(data: "Data", strict: bool = False) -> List[str]:
     """

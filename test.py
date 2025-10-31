@@ -13,4 +13,5 @@ class Date:
 
 today = Date(day=31) # Day is required, or you'll get an error.
 print(pretty_repr(today))
-hi=computed_field()
+
+print(pretty_repr(today.copy()))

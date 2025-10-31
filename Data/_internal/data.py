@@ -2,7 +2,7 @@
 
 from typing import (
     Iterable, Set, Tuple, List, Dict, Any, Optional, Type, TypeVar, Generic, 
-    Literal, overload, KeysView, ValuesView, ItemsView, Union, 
+    Literal, overload, KeysView, ValuesView, ItemsView, Union, Callable, 
     FrozenSet, get_origin, get_args
 )
 from .fields import Field, ComputedField
@@ -144,7 +144,7 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
     
     def copy(self) -> "Data[V]":
         """Creates a shallow copy of the Data object."""
-        return type(self)(object.__getattribute__(self, "content").copy())
+        return type(self)(**object.__getattribute__(self, "content").copy())
     
     @classmethod
     def from_dict(cls: Type["Data[V]"], data: DictSchema) -> "Data[V]":
