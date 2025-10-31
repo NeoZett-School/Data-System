@@ -126,7 +126,7 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
             return
         incorrect = self.__get_incorrect_typing__(annotations)
         for name, field in object.__getattribute__(self, "__fields__").items():
-            if not isinstance(field, ComputedField) and not field.validator(field.value):
+            if not isinstance(field, ComputedField) and not field.validator(field.value or field.default):
                 incorrect.append(name)
         if incorrect:
             raise TypeError(f"Incorrect typing for fields: {', '.join(incorrect)}")
