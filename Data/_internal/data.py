@@ -31,6 +31,10 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
         instance_content = dict()
         instance_content.update(value or {})
         instance_content.update(kwargs) # Overwrite with instance-level arguments
+
+        for k, v in instance_content.items():
+            instance_content[k] = v if not isinstance(v, Field) else v.copy()
+
         object.__setattr__(self, "annotations", {})
         object.__setattr__(self, "content", instance_content)
         object.__setattr__(self, "__frozen__", frozen or self.meta.get("frozen", False))

@@ -14,7 +14,7 @@ class Field:
         _value: V
 
     def __init__(
-        self, 
+        self, *, 
         default: Any = None, 
         default_factory: Callable[[], Any] = None, 
         validator = None, 
@@ -25,6 +25,9 @@ class Field:
         self.validator = validator or (lambda x: True)
         self.required = required
         self._value = None
+    
+    def copy(self) -> "Field":
+        return Field(default=self.default, validator=self.validator, required=self.required)
     
     @property
     def value(self) -> Any:
@@ -45,6 +48,11 @@ class ComputedField(Field):
         self.data = None
         self.recursion = False
     
+    def copy(self) -> "ComputedField":
+        new_field = ComputedField(self.method)
+        new_field.data = self.data
+        return new_field
+    
     @property
     def value(self) -> Any:
         if not self.recursion:
@@ -64,7 +72,7 @@ def field(
     validator = None, 
     required: bool = False
 ) -> Field: 
-    return Field(default, default_factory, validator, required)
+    return Field(default=default, default_factory=default_factory, validator=validator, required=required)
 
 def computed_field(method) -> ComputedField:
     return ComputedField(method)
