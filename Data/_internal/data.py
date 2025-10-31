@@ -2,7 +2,7 @@
 
 from typing import (
     Iterable, Set, Tuple, List, Dict, Any, Optional, Type, TypeVar, Generic, 
-    Literal, overload, KeysView, ValuesView, ItemsView, Union, Callable, 
+    Literal, overload, KeysView, ValuesView, ItemsView, Union, 
     FrozenSet, get_origin, get_args
 )
 from .fields import Field, ComputedField
