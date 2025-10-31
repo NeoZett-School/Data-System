@@ -1,5 +1,6 @@
 from typing import Callable, Optional, Any
-from data import Data, V
+from factory import T
+from data import V
 
 __all__ = ("Field", "field", "computed_field", )
 
@@ -25,4 +26,4 @@ def field(
 ) -> Field: 
     ...
 
-def computed_field(method: Callable[[Data], V]) -> ComputedField: ...
+def computed_field(method: Callable[[T], V]) -> ComputedField: ...

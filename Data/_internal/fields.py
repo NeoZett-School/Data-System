@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING, Callable, Any
 if TYPE_CHECKING:
-    from data import Data, V
+    from factory import T
+    from data import V
 
 if TYPE_CHECKING:
     ValidatorLike = Callable[[V], Any]
@@ -33,8 +34,8 @@ class Field:
 
 class ComputedField(Field):
     if TYPE_CHECKING:
-        method: Callable[[Data], V]
-        data: Data
+        method: Callable[[T], V]
+        data: T
         recursion: bool
 
     def __init__(self, method) -> None:
