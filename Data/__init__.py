@@ -27,6 +27,7 @@ from ._internal import (
     is_data_factory, 
     make_data_factory, 
     field, 
+    computed_field, 
     validate_data,
     inspect_data,
     patch_data, 
@@ -55,6 +56,8 @@ class Module:
                 return is_data_factory
             case "field":
                 return field
+            case "computed_field":
+                return computed_field
             case "make_data_factory":
                 return make_data_factory
             case "validate_data":

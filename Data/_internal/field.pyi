@@ -1,7 +1,7 @@
 from typing import Callable, Optional, Any
-from data import V
+from data import Data, V
 
-__all__ = ("Field", "field", )
+__all__ = ("Field", "field", "computed_field", )
 
 ValidatorLike = Callable[[V], Any]
 
@@ -14,6 +14,10 @@ class Field:
     ) -> None: 
         ...
 
+class ComputedField(Field):
+    def __init__(self, method: Callable[[], V]) -> None:
+        self.method = method
+
 def field(
     *, 
     default: Any = None, 
@@ -21,3 +25,5 @@ def field(
     required: bool = False
 ) -> Field: 
     ...
+
+def computed_field(method: Callable[[Data], V]) -> ComputedField: ...

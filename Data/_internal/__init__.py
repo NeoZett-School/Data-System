@@ -1,6 +1,6 @@
 from .data import Data, FrozenData
 from .factory import data_factory
-from .field import field
+from .field import field, computed_field
 from .utils import (
     is_data_factory, 
     make_data_factory, 
@@ -22,6 +22,7 @@ __all__ = (
     "is_data_factory", 
     "make_data_factory", 
     "field", 
+    "computed_field", 
     "validate_data", 
     "inspect_data", 
     "patch_data", 

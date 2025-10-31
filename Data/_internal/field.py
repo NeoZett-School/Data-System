@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Callable, Any
 if TYPE_CHECKING:
-    from data import V
+    from data import Data, V
 
 if TYPE_CHECKING:
     ValidatorLike = Callable[[V], Any]
@@ -31,6 +31,23 @@ class Field:
     def value(self, new: Any) -> None:
         self._value = new
 
+class ComputedField(Field):
+    if TYPE_CHECKING:
+        method: Callable[[Data], V]
+        data: Data
+
+    def __init__(self, method) -> None:
+        self.method = method
+        self.data = None
+    
+    @property
+    def value(self) -> Any:
+        return self.method(self.data)
+    
+    @value.setter
+    def value(self, new: Any) -> None:
+        pass
+
 def field(
     *, 
     default: Any = None, 
@@ -38,3 +55,6 @@ def field(
     required: bool = False
 ) -> Field: 
     return Field(default, validator, required)
+
+def computed_field(method) -> ComputedField:
+    return ComputedField(method)

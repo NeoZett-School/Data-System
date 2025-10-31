@@ -6,6 +6,7 @@ from ._internal import (
     is_data_factory, 
     make_data_factory, 
     field, 
+    computed_field, 
     validate_data, 
     inspect_data, 
     patch_data, 
@@ -28,6 +29,7 @@ class Module:
     is_data_factory: CallableUtility
     make_data_factory: CallableUtility
     field: CallableUtility
+    computed_field: CallableUtility
     validate_data: CallableUtility
     inspect_data: CallableUtility
     patch_data: CallableUtility
@@ -45,6 +47,7 @@ __all__ = (
     'is_data_factory', 
     'make_data_factory', 
     'field', 
+    'computed_field', 
     'validate_data', 
     'inspect_data', 
     'patch_data', 
