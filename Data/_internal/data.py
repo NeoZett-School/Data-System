@@ -2,7 +2,7 @@
 
 from typing import (
     Iterable, Set, Tuple, List, Dict, Any, Optional, Type, TypeVar, Generic, 
-    Literal, overload, KeysView, ValuesView, ItemsView, Union, 
+    Literal, overload, KeysView, ValuesView, ItemsView, Union, Callable,
     FrozenSet, get_origin, get_args
 )
 from .fields import Field, ComputedField
@@ -68,47 +68,126 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
         origin = get_origin(annotation)
         args = get_args(annotation)
 
+        # 1. Handle Field objects (Initial value resolution)
         if isinstance(value, Field):
+            # Your existing logic to resolve Field to its value or default
             field = value
             value = field.value
-            if value == None:
+            if value is None:
                 if field.required:
                     return False
                 value = field.default
+                # If default is still None, proceed to check annotation for Optional/None
 
+        # --- Core Type Logic ---
+
+        # 2. Handle Simple/Non-Generic Types (origin is None)
         if origin is None:
             if annotation is Any or isinstance(annotation, TypeVar): 
                 return True
-            if value is None and annotation is type(None):
-                return True
+            if annotation is type(None): # Handles explicit 'type(None)' annotation
+                return value is None
+            
+            # Handle custom Data subclasses here for instance checks
+            if isinstance(value, Data): 
+                return isinstance(value, annotation) 
+
+            # Handle built-in and simple classes (int, str, custom classes)
             try:
                 return isinstance(value, annotation)
             except TypeError:
+                # Catch cases where annotation is not a valid class (e.g., Literal, type(None) from get_args)
                 return True 
-            
+
+        # --- Generic Type Logic ---
+
+        # 3. Handle Union (including Optional)
         if origin is Union:
+            # Optimization: Optional[T] is Union[T, NoneType]
+            if type(None) in args and value is None:
+                return True
+            
+            # Check if value matches any type in the Union
             return any(self.__check_type(value, arg) for arg in args)
 
-        if origin in (tuple, Tuple, list, List, dict, Dict, set, Set, frozenset, FrozenSet):
+        # 4. Handle Literal
+        if origin is Literal:
+            # Check if the value is one of the literal arguments
+            return value in args
+
+        # 5. Handle Callable
+        if origin is Callable:
+            if not callable(value):
+                return False
+            # Note: Checking signature is complex, usually just check if callable
+            return True
+        
+        # 6. Handle Type/type (Type[T] or type[T])
+        if origin is Type or origin is type:
+            if not isinstance(value, type):
+                return False
+            if args:
+                # Check if the class/type is a subclass of the annotated generic argument
+                # e.g., value is a class, args[0] is the base class T
+                target_class = args[0]
+                if get_origin(target_class) is Union:
+                    return any(issubclass(value, t) for t in get_args(target_class))
+                return issubclass(value, target_class)
+            return True # Type is generic (Type[Any])
+
+        # 7. Handle Container Types (List, Dict, Tuple, Set, etc.)
+        if origin in (list, List, set, Set, frozenset, FrozenSet):
             if not isinstance(value, origin):
                 return False
-
-            if origin in (list, List, set, Set, frozenset, FrozenSet) and args:
+            
+            if args: # Annotated type (e.g., List[int])
                 item_type = args[0]
                 return all(self.__check_type(item, item_type) for item in value)
+            return True # Non-annotated type (e.g., List)
             
-            if origin in (tuple, Tuple) and args:
-                return all(self.__check_type(value[i], args[i]) if len(value) > i < len(args) else True for i in range(len(value)))
+        if origin in (tuple, Tuple):
+            if not isinstance(value, origin):
+                return False
+                
+            if args: # Annotated tuple (e.g., Tuple[int, str] or Tuple[int, ...])
+                if len(args) == 2 and get_origin(args[1]) is Ellipsis: # Variable length Tuple[T, ...]
+                    item_type = args[0]
+                    return all(self.__check_type(item, item_type) for item in value)
+                
+                # Fixed-length tuple (e.g., Tuple[int, str])
+                if len(value) != len(args):
+                    return False 
+                return all(self.__check_type(value[i], args[i]) for i in range(len(value)))
+            return True # Non-annotated tuple (e.g., tuple)
 
-            if origin in (dict, Dict) and len(args) == 2:
+        if origin in (dict, Dict):
+            if not isinstance(value, origin):
+                return False
+                
+            if len(args) == 2: # Annotated dictionary (e.g., Dict[str, int])
                 key_type, value_type = args
                 return all(self.__check_type(k, key_type) and self.__check_type(v, value_type)
-                           for k, v in value.items())
-        
-        if not isinstance(value, origin):
-            return False
+                        for k, v in value.items())
+            return True # Non-annotated dictionary (e.g., Dict)
+
+        # --- Fallback for Subclasses ---
+
+        # 8. Fallback for Generic Subclasses (like Data[Gene])
+        try:
+            # Check if value is an instance of the non-generic origin type
+            if not isinstance(value, origin):
+                return False
             
-        return True
+            # Further checks for generics like Data[V] (optional, complex)
+            # If the origin has type arguments (args), you'd need custom logic 
+            # to ensure the instance's type arguments match the annotation's.
+            return True
+
+        except TypeError: 
+            # General catch-all for remaining types that are not usable with isinstance
+            return True
+
+        return False
 
     def __get_incorrect_typing__(self, annotations: Optional[Dict[str, Type]] = None) -> List[str]:
         annotations = annotations or object.__getattribute__(self, "annotations")
