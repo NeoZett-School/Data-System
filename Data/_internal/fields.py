@@ -48,14 +48,14 @@ class ComputedField(Field):
         recursion: bool
         classfield: bool
 
-    def __init__(self, method, classfield: bool) -> None:
+    def __init__(self, method, classfield: bool = False) -> None:
         self.method = method
         self.classfield = classfield
         self.data = None
         self.recursion = False
     
     def copy(self) -> "ComputedField":
-        new_field = ComputedField(self.method)
+        new_field = ComputedField(self.method, self.classfield)
         new_field.data = self.data
         return new_field
     

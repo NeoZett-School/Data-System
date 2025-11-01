@@ -12,6 +12,4 @@ class Date:
     # Works. But this will show as a function.
 
 today = Date(day=31) # Day is required, or you'll get an error.
-print(pretty_repr(today))
-
-print(pretty_repr(today.copy()))
+print(today.content)

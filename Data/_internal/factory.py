@@ -10,16 +10,15 @@ class _Dataclass(Data):
     def __init__(self, **kwargs: Any) -> None:
         cls = type(self)
 
+        data_keys = set(k for c in Data.__mro__ for k in c.__dict__ if k not in ("__dict__", "__weakref__"))
+
         instance_content = {}
         for base in reversed(cls.__mro__):
             base_dict = getattr(base, '__dict__', {})
             for k, v in base_dict.items():
-                if (
-                    not k.startswith("_")
-                    and not callable(v)
-                    and k not in {"annotations", "content"}
-                ):
-                    instance_content[k] = v
+                if k.startswith("_") or k in data_keys or callable(v):
+                    continue
+                instance_content[k] = v
 
         instance_content.update(kwargs)
 
