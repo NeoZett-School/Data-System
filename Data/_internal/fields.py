@@ -31,7 +31,7 @@ class Field:
         self._value = None
     
     def copy(self) -> "Field":
-        return Field(default=self.default or self.default_factory(), default_factory=self.default_factory, validator=self.validator, required=self.required)
+        return Field(default=self.default_factory() if self.default_factory else self.default, default_factory=self.default_factory, validator=self.validator, required=self.required)
     
     @property
     def value(self) -> Any:
