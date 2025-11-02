@@ -2,7 +2,7 @@
 
 from typing import (
     Iterable, Set, Tuple, List, Dict, Any, Optional, Type, TypeVar, Generic, 
-    Literal, overload, KeysView, ValuesView, ItemsView, Union, Callable,
+    Literal, overload, KeysView, ValuesView, ItemsView, Union, Callable, Self,
     FrozenSet, get_origin, get_args
 )
 from .fields import Field, ComputedField
@@ -18,50 +18,93 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
     annotations: Dict[str, Type]
     content: DictSchema
 
+    _meta_cache: Dict[str, Any]
+
     __frozen__: bool
     __include_methods__: bool
     __auto_cast__: bool
+    __strict_typing__: bool
     __meta_config__: Dict[str, Any]
     __fields__: Dict[str, Field]
-    __slots__ = ("content", "annotations", "__frozen__", "__include_methods__", "__auto_cast__", "__meta_config__", "__fields__", "__original__", "__was_frozen__",) # __weakref__ is already defined in generic
+    __slots__ = ("content", "annotations", "__frozen__", "__auto_cast__", "__strict_typing__", "__meta_config__", "__fields__", "__original__", "__was_frozen__",) # __weakref__ is already defined in generic
 
-    def __init__(self, value: Optional[DictSchema] = None, frozen: bool = False, include_methods: bool = False, auto_cast: bool = True, **kwargs: Any) -> None:
+    def __init__(self, value: Optional[DictSchema] = None, frozen: bool = False, include_methods: bool = False, auto_cast: bool = True, strict_typing: bool = True, **kwargs: Any) -> None:
         """Initializes the Data object with optional dictionary content and keyword arguments."""
 
-        instance_content = dict()
-        instance_content.update(value or {})
-        instance_content.update(kwargs) # Overwrite with instance-level arguments
+        prepared_content = {}
 
-        for k, v in instance_content.items():
+        for k, v in (value or {}).items():
+            # Non-field values pass through
             if not isinstance(v, Field):
-                instance_content[k] = v
+                prepared_content[k] = v
                 continue
-            if v.classfield: continue
-            instance_content[k] = v.copy()
 
+            # Skip class fields (static, not instance-linked)
+            if getattr(v, "classfield", False):
+                prepared_content[k] = v
+                continue
+
+            # Create independent copy
+            field_copy = v.copy()
+            field_copy.name = k
+            field_copy.data = self  # <- link copied field, not original
+            prepared_content[k] = field_copy
+        
+        for k, v in kwargs.items():
+            prepared = prepared_content.get(k, None)
+            if isinstance(prepared, Field) and not isinstance(prepared, ComputedField):
+                prepared.value = v
+                continue
+            prepared_content[k] = v
+
+        # Core attributes
         object.__setattr__(self, "annotations", {})
-        object.__setattr__(self, "content", instance_content)
-        object.__setattr__(self, "__frozen__", frozen or self.meta.get("frozen", False))
-        object.__setattr__(self, "__include_methods__", include_methods or self.meta.get("include_methods", False))
-        object.__setattr__(self, "__auto_cast__", auto_cast or self.meta.get("auto_cast", False))
-        object.__setattr__(self, "__fields__", {k: v for k, v in instance_content.items() if isinstance(v, Field)})
-        try:
-            object.__setattr__(self, "__meta_config__", dict(object.__getattribute__(self, "__class__").__meta_config__))
-        except AttributeError: pass # Then the "__meta_config__" is most likely read-only, when we don't use "data_factory"
+        object.__setattr__(self, "content", prepared_content)
+        object.__setattr__(self, "_meta_cache", {}) # Create a _meta_cache for this object
 
-        for field in object.__getattribute__(self, "__fields__").values():
-            if hasattr(field, "data"):
-                field.data = self
+        try:
+            meta_cls = dict(type(self).__meta_config__)
+        except AttributeError:
+            meta_cls = {}
+        object.__setattr__(self, "__meta_config__", meta_cls)
+
+        # Config flags
+        object.__setattr__(self, "__frozen__", frozen or self.meta.get("frozen", False))
+        object.__setattr__(self, "__auto_cast__", auto_cast or self.meta.get("auto_cast", False))
+        object.__setattr__(self, "__strict_typing__", strict_typing or self.meta.get("strict_typing", False))
+
+        # Field registry (now fields are already linked)
+        object.__setattr__(self, "__fields__", {k: v for k, v in prepared_content.items() if isinstance(v, Field)})
     
     @property
     def meta(self) -> Dict[str, Any]:
         """Allocate and retrieve relevant metadata for the Data object."""
-        cls_meta = object.__getattribute__(self, "__class__").__meta_config__ or {}
-        instance_meta = object.__getattribute__(self, "content").get("__meta_config__", {})
-        merged_meta = {}
-        merged_meta.update(cls_meta)
-        merged_meta.update(instance_meta)
-        return merged_meta
+        cls_meta = self.__class__.__meta_config__ or {}
+        instance_meta = self.content.get("__meta_config__", {})
+        merged = {}
+        merged.update(cls_meta)
+        merged.update(instance_meta)
+        object.__setattr__(self, "_meta_cache", merged)
+        return object.__getattribute__(self, "_meta_cache")
+    
+    @property
+    def data(self) -> Dict[str, Any]:
+        """Return resolved data values (with Field.value replaced)."""
+        return self.get_content()
+    
+    @property
+    def fields(self) -> Dict[str, Field]:
+        self.__link_fields__()
+        return object.__getattribute__(self, "__fields__")
+    
+    def __link_fields__(self):
+        """Ensure all Field objects are linked to this Data instance."""
+        object.__setattr__(self, "__fields__", {})
+        for name, field in object.__getattribute__(self, "content").items():
+            if isinstance(field, Field):
+                object.__getattribute__(self, "__fields__")[name] = field
+                field.name = name
+                field.data = self
     
     def __check_type(self, value: Any, annotation: Type) -> bool:
         """Recursively checks if a value conforms to a given typing annotation."""
@@ -206,23 +249,29 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
                 incorrect.append(k)
 
         return incorrect
-    
+
     def __raise_typing_error__(self) -> None:
         annotations = object.__getattribute__(self, "annotations")
         if not annotations:
             return
-        incorrect = self.__get_incorrect_typing__(annotations)
+        incorrect = []
+        if object.__getattribute__(self, "__strict_typing__"):
+            incorrect = self.__get_incorrect_typing__(annotations)
         for name, field in object.__getattribute__(self, "__fields__").items():
-            if not isinstance(field, ComputedField) and not field.validator(field.value or field.default):
-                incorrect.append(name)
+            if not isinstance(field, ComputedField) and (not field.validator(field.value or field.default) or (field.required and not field.value)):
+                if not name in incorrect: incorrect.append(name)
         if incorrect:
             raise TypeError(f"Incorrect typing for fields: {', '.join(incorrect)}")
     
-    def __replace_fields__(self, content: DictSchema) -> DictSchema:
-        return {k: v if not isinstance(v, Field) else v.value or v.default if not isinstance(v, ComputedField) else v.value for k, v in content.items()}
+    def _resolve_value(self, value: Any) -> V:
+        if isinstance(value, Field):
+            return (value.value or value.default) if not isinstance(value, ComputedField) else value.value
+        if isinstance(value, Data):
+            return value.get_content()
+        return value
     
-    def __get_content__(self) -> DictSchema:
-        return self.__replace_fields__(object.__getattribute__(self, "content"))
+    def get_content(self) -> DictSchema:
+        return {k: self._resolve_value(v) for k, v in object.__getattribute__(self, "content").items()}
     
     def snapshot(self, version: Optional[str] = None) -> "FrozenData[V]":
         frozen = FrozenData(self.to_dict())
@@ -240,7 +289,7 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
     
     def to_dict(self) -> Union[DictSchema, FrozenSet]:
         """Converts the Data object to a standard dictionary."""
-        content = dict(self.__get_content__())
+        content = dict(self.get_content())
         if object.__getattribute__(self, "__frozen__"):
             return frozenset(content)
         return content
@@ -270,13 +319,13 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
     
     def keys(self) -> KeysView[str]:
         """Return a set-like object providing a view on the data's keys."""
-        return self.__get_content__().keys()
+        return object.__getattribute__(self, "content").keys()
     def values(self) -> ValuesView[V]:
         """Return a set-like object providing a view on the data's values."""
-        return self.__get_content__().values()
+        return self.get_content().values()
     def items(self) -> ItemsView[str, V]:
         """Return a set-like object providing a view on the data's items."""
-        return self.__get_content__().items()
+        return self.get_content().items()
     
     @overload
     def get(self, key: str, default: Literal[None] = None) -> Optional[V]: ...
@@ -284,18 +333,22 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
     def get(self, key: str, default: V) -> V: ...
     def get(self, key: str, default: Optional[V] = None) -> Optional[V]:
         """Return the value for key if key is in the dictionary, else default."""
-        return self.__get_content__().get(key, default)
+        return self._resolve_value(object.__getattribute__(self, "content").get(key, default))
     
     @overload
     def setdefault(self, key: str, default: Literal[None] = None) -> Optional[V]: ...
     @overload
     def setdefault(self, key: str, default: V) -> V: ...
     def setdefault(self, key: str, default: Optional[V] = None) -> Optional[V]:
+        content = object.__getattribute__(self, "content")
         if object.__getattribute__(self, "__frozen__"):
-            return self.__get_content__().get(key, default)
-        result = object.__getattribute__(self, "content").setdefault(key, default)
-        if isinstance(result, Field):
-            return result.value
+            return content.get(key, default)
+        if not key in content:
+            if isinstance(default, Field):
+                object.__getattribute__(self, "__fields__")[key] = default
+            result = self._resolve_value(default)
+            self.__setitem__(key, default)
+        result = self.__getitem__(key)
         self.__raise_typing_error__()
         return result
     
@@ -310,75 +363,43 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
         If the key is not found, return the default if given; otherwise,
         raise a KeyError.
         """
+        content = object.__getattribute__(self, "content")
         if object.__getattribute__(self, "__frozen__"):
-            return self.__get_content__().get(key, default)
-        if key in object.__getattribute__(self, "content"):
-            result = object.__getattribute__(self, "content").pop(key, default)
-            if isinstance(result, Field): return result.value
-        else: return default
+            return content.get(key, default)
+        if isinstance(content.get(key, None), Field):
+            object.__getattribute__(self, "__fields__").pop(key, None)
+        return content.pop(key, self._resolve_value(default))
     
-    def update(self, data: DictSchema) -> None:
+    def update(self, data: Union["Data", DictSchema]) -> None:
         if object.__getattribute__(self, "__frozen__"):
             return
-        object.__getattribute__(self, "content").update(data)
+        for k, v in data.items():
+            self.__setitem__(k, v)
         self.__raise_typing_error__()
     
     def clear(self) -> None:
         if object.__getattribute__(self, "__frozen__"):
             return
+        object.__getattribute__(self, "__fields__").clear()
         object.__getattribute__(self, "content").clear()
     
     def __call__(self, key: str, /, *args: Any, **kwargs: Any) -> Any:
         """Calls a callable stored in the data with the given key, passing any additional arguments."""
         value = object.__getattribute__(self, "content").get(key)
+        if isinstance(value, ComputedField):
+            value = lambda: value.value
         if not callable(value): 
             raise TypeError(f"'{key}' is not callable. Are you sure you are calling this correctly?")
         return value(*args, **kwargs)
     
-    def __getattribute__(self, name: str) -> V:
-        # Fast path: directly handle internal attributes
-        if name in {"__class__", "__dict__", "__include_methods__", "__frozen__", "__meta_config__", "content"}:
-            return object.__getattribute__(self, name)
-
-        this_cls = type(self)
-
-        # Determine if 'name' belongs to the Data class hierarchy
-        in_data = any(name in c.__dict__ for c in Data.__mro__)
-        if in_data:
-            return object.__getattribute__(self, name)
-
-        # Determine if 'name' belongs to this class but not to Data
-        data_keys = {k for c in Data.__mro__ for k in c.__dict__}
-        this_keys = {k for c in this_cls.__mro__ for k in c.__dict__ if k not in data_keys}
-
-        if name in this_keys and object.__getattribute__(self, "__include_methods__"):
-            value = object.__getattribute__(self, name)
-            if callable(value): return value
-
-        # Try to retrieve from 'content'
-        content = self.__get_content__()
+    def __getattr__(self, name: str) -> V:
+        content = object.__getattribute__(self, "content")
         if name in content:
-            return content[name]
-
-        # Otherwise, standard Python AttributeError
-        raise AttributeError(f"'{this_cls.__name__}' object has no attribute '{name}'")
+            return self._resolve_value(content[name])
+        raise AttributeError(f"{type(self).__name__} has no attribute '{name}'")
     
     def __setattr__(self, name: str, value: V) -> None:
-        if object.__getattribute__(self, "__frozen__"):
-            return
-        if object.__getattribute__(self, "__auto_cast__"):
-            expected = self.annotations.get(name)
-            if expected:
-                try:
-                    value = expected(value)
-                except Exception:
-                    pass
-        prev_value = object.__getattribute__(self, "content").get(name, None)
-        if isinstance(prev_value, Field): 
-            prev_value.value = value
-        else:
-            object.__getattribute__(self, "content")[name] = value
-        self.__raise_typing_error__()
+        self.__setitem__(name, value)
     
     def __enter__(self) -> "Data":
         object.__setattr__(self, "__original__", object.__getattribute__(self, "content").copy())
@@ -392,8 +413,9 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
         object.__setattr__(self, "__frozen__", object.__getattribute__(self, "__was_frozen__"))
     
     def __getitem__(self, key: str) -> V:
-        return self.__get_content__()[key]
+        return self._resolve_value(object.__getattribute__(self, "content")[key])
     def __setitem__(self, key: str, value: V) -> None:
+        content = object.__getattribute__(self, "content")
         if object.__getattribute__(self, "__frozen__"):
             return
         if object.__getattribute__(self, "__auto_cast__"):
@@ -403,15 +425,18 @@ class Data(Generic[V], Iterable, metaclass=DataMeta):
                     value = expected(value)
                 except Exception:
                     pass
-        prev_value = object.__getattribute__(self, "content").get(key, None)
-        if isinstance(prev_value, Field): 
-            prev_value.value = value
-        else:
-            object.__getattribute__(self, "content")[key] = value
+        if isinstance(value, Field):
+            object.__getattribute__(self, "__fields__")[key] = value
+            content[key] = value
+        elif isinstance(content[key], Field) and not isinstance(content[key], ComputedField):
+            content[key].value = value
+        else: content[key] = value
         self.__raise_typing_error__()
     def __delitem__(self, key: str) -> None:
         if object.__getattribute__(self, "__frozen__"):
             return
+        if key in object.__getattribute__(self, "__fields__"):
+            del object.__getattribute__(self, "__fields__")[key]
         del object.__getattribute__(self, "content")[key]
     def __contains__(self, key: str) -> bool:
         return key in object.__getattribute__(self, "content")

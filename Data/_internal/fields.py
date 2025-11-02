@@ -7,12 +7,14 @@ if TYPE_CHECKING:
     ValidatorLike = Callable[[V], Any]
 
 class Field:
+    name: str
     default: Any
     default_factory: Type
     required: bool
     classfield: bool
     if TYPE_CHECKING:
         validator: ValidatorLike
+        data: T
         _value: V
 
     def __init__(
@@ -23,15 +25,20 @@ class Field:
         required: bool = False, 
         classfield: bool = False
     ) -> None:
+        self.name = None
         self.default = default
         self.default_factory = default_factory
         self.validator = validator or (lambda x: True)
         self.required = required
         self.classfield = classfield
+        self.data = None
         self._value = None
     
     def copy(self) -> "Field":
-        return Field(default=self.default_factory() if self.default_factory else self.default, default_factory=self.default_factory, validator=self.validator, required=self.required)
+        new_field = Field(default=self.default_factory() if self.default_factory else self.default, default_factory=self.default_factory, validator=self.validator, required=self.required)
+        new_field.name = self.name
+        new_field.data = self.data
+        return new_field
     
     @property
     def value(self) -> Any:
@@ -42,13 +49,15 @@ class Field:
         self._value = new
 
 class ComputedField(Field):
+    name: str
+    recursion: bool
+    classfield: bool
     if TYPE_CHECKING:
         method: Callable[[T], V]
         data: T
-        recursion: bool
-        classfield: bool
 
     def __init__(self, method, classfield: bool = False) -> None:
+        self.name = None
         self.method = method
         self.classfield = classfield
         self.data = None
@@ -56,6 +65,7 @@ class ComputedField(Field):
     
     def copy(self) -> "ComputedField":
         new_field = ComputedField(self.method, self.classfield)
+        new_field.name = self.name
         new_field.data = self.data
         return new_field
     

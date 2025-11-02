@@ -5,11 +5,14 @@ class Date:
     year: int = 2025
     month: int = 10
     day: int = field(required=True)
-    year_month_day: str = computed_field(lambda self: f"{self.year} - {self.month} - {self.day}")
+    year_month_day: str = computed_field(lambda self: f"{self.year} - {self.month} - {self.day.value}")
 
     #@computed_field
     #def year_month(self): ... 
     # Works. But this will show as a function.
 
 today = Date(day=31) # Day is required, or you'll get an error.
-print(today.content)
+print(today.to_dict())
+print(today.year)
+print(today.day)
+print(today.year_month_day)

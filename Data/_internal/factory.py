@@ -34,7 +34,6 @@ class _Dataclass(Data):
 def data_factory(
     cls: Optional[Type[T]] = None, /,
     frozen: bool = False,
-    include_methods: bool = False,
     **kwargs: Any
 ) -> Type[T]:
     """
@@ -64,7 +63,6 @@ def data_factory(
             bases,
             namespace,
             frozen=frozen,
-            include_methods=include_methods,
             **config
         )
         return new_cls
